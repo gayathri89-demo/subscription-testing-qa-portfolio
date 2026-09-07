@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-    "cy:open": "cypress open",
-    "cy:run": "cypress run",
-    "test:ui": "cypress run --spec \"cypress/e2e/ui/**/*.cy.js\"",
-    "test:api": "cypress run --spec \"cypress/e2e/api/**/*.cy.js\""
+ "scripts": {
+  "api:start": "node mock-api/server.js",
+  "cy:open": "cypress open",
+  "cy:run": "cypress run",
+  "cy:api": "cypress run --spec \"cypress/e2e/api/**/*.cy.js\"",
+  "test:api": "start-server-and-test api:start http://127.0.0.1:3000/health cy:api"
   },
   "repository": {
     "type": "git",
@@ -22,6 +23,11 @@
   },
   "homepage": "https://github.com/gayathri89-demo/subscription-testing-qa-portfolio#readme",
   "devDependencies": {
-    "cypress": "^16.0.0"
+    "cypress": "^16.0.0",
+    "start-server-and-test": "^3.0.12"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
   }
 }
