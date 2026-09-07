@@ -1,0 +1,27 @@
+{
+  "name": "subscription-testing-qa-portfolio",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "cy:open": "cypress open",
+    "cy:run": "cypress run",
+    "test:ui": "cypress run --spec \"cypress/e2e/ui/**/*.cy.js\"",
+    "test:api": "cypress run --spec \"cypress/e2e/api/**/*.cy.js\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gayathri89-demo/subscription-testing-qa-portfolio.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/gayathri89-demo/subscription-testing-qa-portfolio/issues"
+  },
+  "homepage": "https://github.com/gayathri89-demo/subscription-testing-qa-portfolio#readme",
+  "devDependencies": {
+    "cypress": "^16.0.0"
+  }
+}
