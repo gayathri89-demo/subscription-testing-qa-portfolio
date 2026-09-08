@@ -2,97 +2,444 @@
   "info": {
     "_postman_id": "99bd0172-606a-4611-8e12-d438fef9d6b1",
     "name": "Subscription API QA Portfolio",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "21864690"
+    "description": "Functional, negative, authorization and idempotency testing for the local Subscription API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000"
+    },
+    {
+      "key": "userId",
+      "value": "postman-user-a"
+    },
+    {
+      "key": "otherUserId",
+      "value": "postman-user-b"
+    },
+    {
+      "key": "subscriptionId",
+      "value": ""
+    },
+    {
+      "key": "idempotencyKey",
+      "value": ""
+    }
+  ],
   "item": [
     {
-      "name": "Health",
+      "name": "Health and Plans",
       "item": [
         {
-          "name": "New Request",
+          "name": "Health Check",
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": ""
-            }
+            "url": "{{baseUrl}}/health"
           },
-          "response": []
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Service status is UP', function () {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response.status).to.eql('UP');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Retrieve Subscription Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/subscription-plans"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Annual and monthly plans are returned', function () {",
+                  "  const plans = pm.response.json();",
+                  "  pm.expect(plans).to.be.an('array').with.lengthOf(2);",
+                  "  pm.expect(plans.map(plan => plan.id)).to.include.members(['annual', 'monthly']);",
+                  "});",
+                  "",
+                  "pm.test('Plans contain required properties', function () {",
+                  "  const plans = pm.response.json();",
+                  "  plans.forEach(plan => {",
+                  "    pm.expect(plan).to.have.property('id');",
+                  "    pm.expect(plan).to.have.property('billingAmount');",
+                  "    pm.expect(plan).to.have.property('currency');",
+                  "    pm.expect(plan).to.have.property('trialDays');",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "name": "Plans",
+      "name": "Subscription Lifecycle",
       "item": [
         {
-          "name": "New Request",
+          "name": "Create Annual Trial",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('userId', `postman-user-${Date.now()}`);",
+                  "pm.collectionVariables.set('idempotencyKey', `postman-key-${Date.now()}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const response = pm.response.json();",
+                  "",
+                  "pm.test('Annual trial is created correctly', function () {",
+                  "  pm.expect(response.planId).to.eql('annual');",
+                  "  pm.expect(response.status).to.eql('trial');",
+                  "  pm.expect(response.futureBillingAmount).to.eql(399.99);",
+                  "  pm.expect(response.currency).to.eql('AED');",
+                  "  pm.expect(response.autoRenew).to.eql(true);",
+                  "});",
+                  "",
+                  "pm.test('Trial duration is seven days', function () {",
+                  "  const startedAt = new Date(response.trialStartedAt);",
+                  "  const endsAt = new Date(response.trialEndsAt);",
+                  "  const duration = (endsAt - startedAt) / (1000 * 60 * 60 * 24);",
+                  "  pm.expect(duration).to.be.closeTo(7, 0.001);",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('subscriptionId', response.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              },
+              {
+                "key": "idempotency-key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"annual\"\n}"
+            },
+            "url": "{{baseUrl}}/api/subscriptions"
+          }
+        },
+        {
+          "name": "Retrieve Owned Subscription",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": ""
-            }
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/subscriptions/{{subscriptionId}}"
           },
-          "response": []
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Correct subscription is returned', function () {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response.id).to.eql(pm.collectionVariables.get('subscriptionId'));",
+                  "  pm.expect(response.userId).to.eql(pm.collectionVariables.get('userId'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel Owned Subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/subscriptions/{{subscriptionId}}/cancel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Subscription is cancelled', function () {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response.status).to.eql('cancelled');",
+                  "  pm.expect(response.autoRenew).to.eql(false);",
+                  "  pm.expect(response).to.have.property('cancelledAt');",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "name": "Subscription Creation",
+      "name": "Negative Testing",
       "item": [
         {
-          "name": "New Request",
+          "name": "Reject Missing Authentication",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "idempotency-key",
+                "value": "missing-auth-key"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"annual\"\n}"
+            },
+            "url": "{{baseUrl}}/api/subscriptions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Authentication error is returned', function () {",
+                  "  pm.expect(pm.response.json().error).to.eql('Authentication required');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject Missing Idempotency Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-user-id",
+                "value": "missing-key-user"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"monthly\"\n}"
+            },
+            "url": "{{baseUrl}}/api/subscriptions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Idempotency error is returned', function () {",
+                  "  pm.expect(pm.response.json().error).to.eql('Idempotency-Key header is required');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject Invalid Plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-user-id",
+                "value": "invalid-plan-user"
+              },
+              {
+                "key": "idempotency-key",
+                "value": "invalid-plan-key"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"invalid\"\n}"
+            },
+            "url": "{{baseUrl}}/api/subscriptions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Invalid plan error is returned', function () {",
+                  "  pm.expect(pm.response.json().error).to.eql('Invalid subscription plan');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Retrieve Unknown Subscription",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": ""
-            }
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/subscriptions/unknown-subscription"
           },
-          "response": []
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Not-found error is returned', function () {",
+                  "  pm.expect(pm.response.json().error).to.eql('Subscription not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "name": "Subscription Retrieval",
+      "name": "Authorization Security",
       "item": [
         {
-          "name": "New Request",
+          "name": "Prevent Cross-User Retrieval",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": ""
-            }
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{otherUserId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/subscriptions/{{subscriptionId}}"
           },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Authorization",
-      "item": [
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 403', function () {",
+                  "  pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Protected subscription data is not exposed', function () {",
+                  "  const response = pm.response.json();",
+                  "  pm.expect(response).to.eql({ error: 'Access forbidden' });",
+                  "  pm.expect(pm.response.text()).not.to.include(pm.collectionVariables.get('subscriptionId'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
         {
-          "name": "New Request",
+          "name": "Prevent Cross-User Cancellation",
           "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": ""
-            }
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{otherUserId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/subscriptions/{{subscriptionId}}/cancel"
           },
-          "response": []
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 403', function () {",
+                  "  pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Access forbidden error is returned', function () {",
+                  "  pm.expect(pm.response.json()).to.eql({ error: 'Access forbidden' });",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
-    },
-    {
-      "name": "Idempotency",
-      "item": []
-    },
-    {
-      "name": "Cancellation",
-      "item": []
     }
   ]
 }
